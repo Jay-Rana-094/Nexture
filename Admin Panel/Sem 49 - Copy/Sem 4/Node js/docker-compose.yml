@@ -1,0 +1,58 @@
+version: '3.8'
+services:
+  mongo:
+    image: mongo:6.0
+    container_name: nexture-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: nexture-rabbitmq
+    restart: unless-stopped
+    # Map to non-default host ports to avoid conflicts with existing RabbitMQ instances
+    ports:
+      - "5673:5672"
+      - "15673:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
+  api:
+    build: .
+    container_name: nexture-api
+    restart: unless-stopped
+    ports:
+      - "6501:6500"
+    depends_on:
+      - mongo
+      - rabbitmq
+    env_file: .env
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/NextureDB
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+      - PORT=6500
+    command: npm run start
+
+  worker:
+    build: .
+    container_name: nexture-worker
+    restart: unless-stopped
+    depends_on:
+      - mongo
+      - rabbitmq
+    env_file: .env
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/NextureDB
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+      - ORDER_EMAIL_QUEUE=order_email_queue
+    command: npm run worker
+
+volumes:
+  mongo_data:
+  rabbitmq_data:
